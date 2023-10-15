@@ -13,4 +13,4 @@ ADD_SRC = boards/ecpix5/sysmgr.v \
 		  $(SRC_COMMON)
 
 prog: $(BUILD)/$(PROJ).bin
-	openFPGALoader -b ecpix5 $(BUILD)/$(PROJ).bin
+	openFPGALoader -c ft4232 $(BUILD)/$(PROJ).bin
