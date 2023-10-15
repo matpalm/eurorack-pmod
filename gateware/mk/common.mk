@@ -17,7 +17,10 @@ SRC_COMMON = eurorack_pmod.sv \
 		     cores/filter.sv \
 			 cores/network.sv \
 			 cores/net/left_shift_buffer.sv \
-		     cores/util/filter/karlsen_lpf_pipelined.sv \
+			 cores/net/conv1d.sv \
+			 cores/net/row_by_matrix_multiply.sv \
+			 cores/net/dot_product.sv \
+			 cores/util/filter/karlsen_lpf_pipelined.sv \
 		     cores/util/filter/karlsen_lpf.sv \
 		     cores/util/transpose.sv \
 		     cores/util/echo.sv \
