@@ -11,6 +11,7 @@
 # 5. Supply -5V, wait for values to settle, hold 'n' to capture
 # 6. At this point you can try other voltages to make sure the calibration is good
 #    by looking at the 'back-calculated' values using the generated calibration.
+#    by looking at the 'back-calculated' values using the generated calibration.
 # 7. Press 'o' to switch to OUTPUT calibration.
 # 8. Loop back all outputs to inputs (1->1, 2->2, ...)
 # 9. Wait for values to settle, hold 'p' to capture
