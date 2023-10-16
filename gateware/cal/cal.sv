@@ -94,7 +94,7 @@ always_ff @(posedge clk_256fs) begin
             if (ch == LAST_CH_IX) state <= CAL_ST_MULTIPLY;
         end
         CAL_ST_MULTIPLY: begin
-            out[ch] <= (out[ch] * cal_mem[{ch, 1'b1}]) >>> 12;
+            out[ch] <= (out[ch] * cal_mem[{ch, 1'b1}]) >>> 10;
             if (ch == LAST_CH_IX) state <= CAL_ST_CLAMPL;
         end
         CAL_ST_CLAMPL: begin
