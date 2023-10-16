@@ -42,7 +42,7 @@ SERIAL_PORT = sys.argv[1]
 COUNT_PER_VOLT = 4000
 
 # Number of bits in multiply constant for input calibration
-MP_N_BITS = 10
+MP_N_BITS = 12
 
 # Calibrate outputs such that they are correct if they are driving
 # an open load (i.e a multimeter). Normally, the 1K output impedance
