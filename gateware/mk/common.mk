@@ -4,7 +4,7 @@ SRC_COMMON = eurorack_pmod.sv \
 		     external/no2misc/rtl/uart_tx.v \
 		     external/no2misc/rtl/i2c_master.v \
 		     cal/cal.sv \
-		     cal/debug_uart.sv \
+		     cal/debug_uart_in_out.sv \
 		     cores/mirror.sv \
 		     cores/clkdiv.sv \
 		     cores/seqswitch.sv \

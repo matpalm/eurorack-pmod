@@ -174,20 +174,14 @@ eurorack_pmod #(
 
 // Helper module to serialize some interesting state to a UART
 // for bringup and calibration purposes.
-debug_uart #(
+debug_uart_in_out #(
     .DIV(12) // WARN: baud rate is determined by clk_256fs / 12 !!
 ) debug_uart_instance (
     .clk (clk_256fs),
     .rst (rst),
     .tx_o(UART_TX),
-    .adc0(out0),
-    .adc1(out1),
-    .adc2(out2),
-    .adc3(out3),
-    .eeprom_mfg(eeprom_mfg),
-    .eeprom_dev(eeprom_dev),
-    .eeprom_serial(eeprom_serial),
-    .jack(jack)
+    .in0(in0), .in1(in1), .in2(in2), .in3(in3),
+    .out0(out0), .out1(out1), .out2(out2), .out3(out3)
 );
 
 endmodule
