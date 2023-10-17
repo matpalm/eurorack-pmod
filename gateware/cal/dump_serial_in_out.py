@@ -26,17 +26,14 @@ def decode_raw_samples(n, raw):
         lsb = raw[ix*2+1]
         value = (msb << 8) | lsb
         value_tc = twos_comp(value, 16)
-        sys.stdout.write(f"{hex(value)} ({value_tc}) ")
+        sys.stdout.write(f"{ix} {hex(value)} ({value_tc}) ")
         ix = ix + 1
 
-n = 0
 while True:
     # TODO: switch from sampling to full processing
-    #ser.flushInput()
+    ser.flushInput()
     raw = ser.read(100)
     magix_idx = raw.find(b'\xbe\xef')
     raw = raw[(magix_idx+2):]
-    sys.stdout.write(f"{n} ")
     decode_raw_samples(8, raw)  # 4 input, 4 output => 8
     sys.stdout.write("\n")
-    n += 1
