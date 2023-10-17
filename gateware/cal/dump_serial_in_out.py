@@ -19,15 +19,15 @@ def twos_comp(val, bits):
 
 ser = serial.Serial(SERIAL_PORT, 1000000)
 
+ports = 'I0 I1 I2 I3 O0 O1 O2 O3'.split(" ")
+
 def decode_raw_samples(n, raw):
-    ix = 0
-    while ix != n:
+    for ix in range(n):
         msb = raw[ix*2]
         lsb = raw[ix*2+1]
         value = (msb << 8) | lsb
         value_tc = twos_comp(value, 16)
-        sys.stdout.write(f"{ix} {hex(value)} ({value_tc}) ")
-        ix = ix + 1
+        sys.stdout.write(f"{ports[ix]} {hex(value)} ({value_tc}) ")
 
 while True:
     # TODO: switch from sampling to full processing
