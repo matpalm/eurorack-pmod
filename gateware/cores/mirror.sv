@@ -23,7 +23,7 @@ module mirror #(
 
 assign sample_out0 = sample_in0;
 assign sample_out1 = sample_in1;
-assign sample_out2 = sample_in0 >>> 2;
-assign sample_out3 = (sample_in0 >>> 2 ) << 2;
+assign sample_out2 = sample_in2;
+assign sample_out3 = sample_in3;
 
 endmodule

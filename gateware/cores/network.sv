@@ -33,9 +33,11 @@ module network #(
     reg signed [W-1:0] lsb_out_d3;
     reg signed [W-1:0] lsb_input;
 
+    assign lsb_input = sample_in0 >>> 2;
+
     left_shift_buffer lsb (
         .clk(lsb_clk), .rst(rst),
-        .inp(sample_in0),
+        .inp(lsb_input),
         .out_d0(lsb_out_d0), .out_d1(lsb_out_d1), .out_d2(lsb_out_d2), .out_d3(lsb_out_d3)
     );
 
@@ -53,7 +55,6 @@ module network #(
             state <= WAITING;
         end else begin
             if (sample_clk == 1 && sample_clk != prev_sample_clk) begin
-                lsb_clk <= 1;
                 state <= CLK_LSB;
                 n_sample_clk_ticks <= n_sample_clk_ticks + 1;
             end else begin
@@ -62,10 +63,11 @@ module network #(
                         // nothing
                     end
                     CLK_LSB: begin
-                        lsb_clk <= 0;
+                        lsb_clk <= 1;
                         state <= OUTPUT;
                     end
                     OUTPUT: begin
+                        lsb_clk <= 0;
                         // nothing yet
                     end
                 endcase
