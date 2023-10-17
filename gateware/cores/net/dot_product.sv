@@ -4,24 +4,25 @@
 // (8,) . (8,) -> (1,)
 
 module dot_product #(
-    parameter W=16,
+    parameter W=16,   // width for each element
+    parameter D=8,    // size of packed port arrays
     parameter B_VALUES
 )(
   input                        clk,
   input                        rst,
-
-  input signed [W-1:0]         a_d0,
-  input signed [W-1:0]         a_d1,
-  input signed [W-1:0]         a_d2,
-  input signed [W-1:0]         a_d3,
-  input signed [W-1:0]         a_d4,
-  input signed [W-1:0]         a_d5,
-  input signed [W-1:0]         a_d6,
-  input signed [W-1:0]         a_d7,
-
+  input signed [D*W-1:0]       packed_a,
   output reg signed [2*W-1:0]  out,
   output reg                   out_v
 );
+
+    // unpack a
+    logic signed [W-1:0] a[D];
+    genvar i;
+    generate
+        for (i = 0; i < D; i++) begin
+            assign a[i] = packed_a[W*(D-i-1) +: W];
+        end
+    endgenerate
 
     // state machine for pipelined mulitplies ( in pairs )
     // and accumulation.
@@ -58,44 +59,46 @@ module dot_product #(
             out_v <= 0;
         end else
             case(dp_state)
+                // TODO: with a an array too we can fold all these
+                // into one "state" with an i value; a[i] * b[i]
                 MULT_D0: begin
                     acc0 <= 0;
-                    product0 <= a_d0 * b_values[0];
+                    product0 <= a[0] * b_values[0];
                     dp_state <= MULT_D1;
                 end
                 MULT_D1: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d1 * b_values[1];
+                    product0 <= a[1] * b_values[1];
                     dp_state <= MULT_D2;
                 end
                 MULT_D2: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d2 * b_values[2];
+                    product0 <= a[2] * b_values[2];
                     dp_state <= MULT_D3;
                 end
                 MULT_D3: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d3 * b_values[3];
+                    product0 <= a[3] * b_values[3];
                     dp_state <= MULT_D4;
                 end
                 MULT_D4: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d4 * b_values[4];
+                    product0 <= a[4] * b_values[4];
                     dp_state <= MULT_D5;
                 end
                 MULT_D5: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d5 * b_values[5];
+                    product0 <= a[5] * b_values[5];
                     dp_state <= MULT_D6;
                 end
                 MULT_D6: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d6 * b_values[6];
+                    product0 <= a[6] * b_values[6];
                     dp_state <= MULT_D7;
                 end
                 MULT_D7: begin
                     acc0 <= acc0 + product0;
-                    product0 <= a_d7 * b_values[7];
+                    product0 <= a[7] * b_values[7];
                     dp_state <= FINAL_ADD;
                 end
                 FINAL_ADD: begin

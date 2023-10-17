@@ -1,5 +1,6 @@
 module network #(
-    parameter W = 16
+    parameter W = 16,
+    parameter D = 8
 )(
     input rst,
     input clk,
@@ -48,96 +49,23 @@ module network #(
     // always connected to left shift buffer for input
 
     reg c0_rst;
-
-    reg signed [W-1:0] c0a0_d0;
-    reg signed [W-1:0] c0a0_d1;
-    reg signed [W-1:0] c0a0_d2;
-    reg signed [W-1:0] c0a0_d3;
-    reg signed [W-1:0] c0a0_d4;
-    reg signed [W-1:0] c0a0_d5;
-    reg signed [W-1:0] c0a0_d6;
-    reg signed [W-1:0] c0a0_d7;
-
-    reg signed [W-1:0] c0a1_d0;
-    reg signed [W-1:0] c0a1_d1;
-    reg signed [W-1:0] c0a1_d2;
-    reg signed [W-1:0] c0a1_d3;
-    reg signed [W-1:0] c0a1_d4;
-    reg signed [W-1:0] c0a1_d5;
-    reg signed [W-1:0] c0a1_d6;
-    reg signed [W-1:0] c0a1_d7;
-
-    reg signed [W-1:0] c0a2_d0;
-    reg signed [W-1:0] c0a2_d1;
-    reg signed [W-1:0] c0a2_d2;
-    reg signed [W-1:0] c0a2_d3;
-    reg signed [W-1:0] c0a2_d4;
-    reg signed [W-1:0] c0a2_d5;
-    reg signed [W-1:0] c0a2_d6;
-    reg signed [W-1:0] c0a2_d7;
-
-    reg signed [W-1:0] c0a3_d0;
-    reg signed [W-1:0] c0a3_d1;
-    reg signed [W-1:0] c0a3_d2;
-    reg signed [W-1:0] c0a3_d3;
-    reg signed [W-1:0] c0a3_d4;
-    reg signed [W-1:0] c0a3_d5;
-    reg signed [W-1:0] c0a3_d6;
-    reg signed [W-1:0] c0a3_d7;
-
-    reg signed [W-1:0] c0_out_d0;
-    reg signed [W-1:0] c0_out_d1;
-    reg signed [W-1:0] c0_out_d2;
-    reg signed [W-1:0] c0_out_d3;
-    reg signed [W-1:0] c0_out_d4;
-    reg signed [W-1:0] c0_out_d5;
-    reg signed [W-1:0] c0_out_d6;
-    reg signed [W-1:0] c0_out_d7;
-
+    reg signed [D*W-1:0] c0a0;
+    reg signed [D*W-1:0] c0a1;
+    reg signed [D*W-1:0] c0a2;
+    reg signed [D*W-1:0] c0a3;
+    reg signed [D*W-1:0] c0_out;
     reg c0_out_v;
 
-    assign c0a0_d0 = lsb_out_d0;
-    assign c0a0_d1 = 0;
-    assign c0a0_d2 = 0;
-    assign c0a0_d3 = 0;
-    assign c0a0_d4 = 0;
-    assign c0a0_d5 = 0;
-    assign c0a0_d6 = 0;
-    assign c0a0_d7 = 0;
-    assign c0a1_d0 = lsb_out_d1;
-    assign c0a1_d1 = 0;
-    assign c0a1_d2 = 0;
-    assign c0a1_d3 = 0;
-    assign c0a1_d4 = 0;
-    assign c0a1_d5 = 0;
-    assign c0a1_d6 = 0;
-    assign c0a1_d7 = 0;
-    assign c0a2_d0 = lsb_out_d2;
-    assign c0a2_d1 = 0;
-    assign c0a2_d2 = 0;
-    assign c0a2_d3 = 0;
-    assign c0a2_d4 = 0;
-    assign c0a2_d5 = 0;
-    assign c0a2_d6 = 0;
-    assign c0a2_d7 = 0;
-    assign c0a3_d0 = lsb_out_d3;
-    assign c0a3_d1 = 0;
-    assign c0a3_d2 = 0;
-    assign c0a3_d3 = 0;
-    assign c0a3_d4 = 0;
-    assign c0a3_d5 = 0;
-    assign c0a3_d6 = 0;
-    assign c0a3_d7 = 0;
+    // output from left shift buffer sits in c0a0[0] with all other c0a0 value 0
+    assign c0a0 = lsb_out_d0 << (D-1)*W;
+    assign c0a1 = lsb_out_d1 << (D-1)*W;
+    assign c0a2 = lsb_out_d2 << (D-1)*W;
+    assign c0a3 = lsb_out_d3 << (D-1)*W;
 
     conv1d #(.B_VALUES("weights/qconv0")) conv0 (
-        // TODO: REMEMBER RELU HAS BEEN TURNED OFF HERE!!!
         .clk(clk), .rst(c0_rst), .apply_relu(1'b0),
-        .a0_d0(c0a0_d0), .a0_d1(c0a0_d1), .a0_d2(c0a0_d2), .a0_d3(c0a0_d3), .a0_d4(c0a0_d4), .a0_d5(c0a0_d5), .a0_d6(c0a0_d6), .a0_d7(c0a0_d7),
-        .a1_d0(c0a1_d0), .a1_d1(c0a1_d1), .a1_d2(c0a1_d2), .a1_d3(c0a1_d3), .a1_d4(c0a1_d4), .a1_d5(c0a1_d5), .a1_d6(c0a1_d6), .a1_d7(c0a1_d7),
-        .a2_d0(c0a2_d0), .a2_d1(c0a2_d1), .a2_d2(c0a2_d2), .a2_d3(c0a2_d3), .a2_d4(c0a2_d4), .a2_d5(c0a2_d5), .a2_d6(c0a2_d6), .a2_d7(c0a2_d7),
-        .a3_d0(c0a3_d0), .a3_d1(c0a3_d1), .a3_d2(c0a3_d2), .a3_d3(c0a3_d3), .a3_d4(c0a3_d4), .a3_d5(c0a3_d5), .a3_d6(c0a3_d6), .a3_d7(c0a3_d7),
-        .out_d0(c0_out_d0), .out_d1(c0_out_d1), .out_d2(c0_out_d2), .out_d3(c0_out_d3),
-        .out_d4(c0_out_d4), .out_d5(c0_out_d5), .out_d6(c0_out_d6), .out_d7(c0_out_d7),
+        .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
+        .packed_out(c0_out),
         .out_v(c0_out_v));
 
     //-------------------------------------
@@ -187,10 +115,10 @@ module network #(
                 //n_clk_ticks <= n_clk_ticks + 1;
             end
 
-            sample_out0 <= c0_out_d0 << 2;
-            sample_out1 <= c0_out_d1 << 2;
-            sample_out2 <= c0_out_d2 << 2;
-            sample_out3 <= lsb_out_d0;
+            sample_out0 <= c0_out[8*W-1:7*W] << 2;
+            sample_out1 <= c0_out[7*W-1:6*W] << 2;
+            sample_out2 <= c0_out[6*W-1:5*W] << 2;
+            sample_out3 <= c0_out[5*W-1:4*W] << 2;
 
         end
     end
