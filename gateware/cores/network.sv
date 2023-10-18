@@ -17,11 +17,14 @@ module network #(
 );
 
     localparam
-        WAITING         = 4'b0000,
-        CLK_LSB         = 4'b0001,
-        RST_CONV_0      = 4'b0010,
-        CONV_0_RUNNING  = 4'b0011,
-        COUNT_DP        = 4'b0100,
+        CLK_LSB         = 4'b0000,
+        RST_CONV_0      = 4'b0001,
+        CONV_0_RUNNING  = 4'b0010,
+        CLK_ACT_CACHE_0 = 4'b0011,
+        RST_CONV_1      = 4'b0100,
+        CONV_1_RUNNING  = 4'b0101,
+
+        WAITING         = 4'b1110,
         OUTPUT          = 4'b1111;
     reg [3:0] state;
 
@@ -63,10 +66,50 @@ module network #(
     assign c0a3 = lsb_out_d3 << (D-1)*W;
 
     conv1d #(.B_VALUES("weights/qconv0")) conv0 (
-        .clk(clk), .rst(c0_rst), .apply_relu(1'b0),
+        .clk(clk), .rst(c0_rst), .apply_relu(1'b1),
         .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
         .packed_out(c0_out),
         .out_v(c0_out_v));
+
+    //--------------------------------
+    // conv 0 activation cache
+
+    reg ac_c0_clk = 0;
+    reg signed [D*W-1:0] ac_c0_out_l0;
+    reg signed [D*W-1:0] ac_c0_out_l1;
+    reg signed [D*W-1:0] ac_c0_out_l2;
+    reg signed [D*W-1:0] ac_c0_out_l3;
+    localparam C0_DILATION = 4;
+
+    activation_cache #(.W(W), .D(D), .DILATION(C0_DILATION)) activation_cache_c0 (
+        .clk(ac_c0_clk), .rst(rst), .inp(c0_out),
+        .out_l0(ac_c0_out_l0),
+        .out_l1(ac_c0_out_l1),
+        .out_l2(ac_c0_out_l2),
+        .out_l3(ac_c0_out_l3)
+    );
+
+    //--------------------------------
+    // conv 1 block
+
+    reg c1_rst = 0;
+    reg signed [D*W-1:0] c1a0;
+    reg signed [D*W-1:0] c1a1;
+    reg signed [D*W-1:0] c1a2;
+    reg signed [D*W-1:0] c1a3;
+    reg signed [D*W-1:0] c1_out;
+    reg c1_out_v;
+
+    assign c1a0 = ac_c0_out_l0;
+    assign c1a1 = ac_c0_out_l1;
+    assign c1a2 = ac_c0_out_l2;
+    assign c1a3 = ac_c0_out_l3;
+
+    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
+        .clk(clk), .rst(c1_rst), .apply_relu(1'b0),
+        .packed_a0(c1a0), .packed_a1(c1a1), .packed_a2(c1a2), .packed_a3(c1a3),
+        .packed_out(c1_out),
+        .out_v(c1_out_v));
 
     //-------------------------------------
     // clock handling
@@ -94,19 +137,45 @@ module network #(
                     WAITING: begin
                         // nothing
                     end
+
                     CLK_LSB: begin
+                        // signal left shift buffer to run once
                         lsb_clk <= 1;
                         state <= RST_CONV_0;
                     end
+
                     RST_CONV_0: begin
+                        // signal conv0 to reset and run
                         lsb_clk <= 0;
                         c0_rst <= 1;
                         state <= CONV_0_RUNNING;
                     end
+
                     CONV_0_RUNNING: begin
+                        // wait until conv0 has run
                         c0_rst <= 0;
-                        state <= c0_out_v ? WAITING : CONV_0_RUNNING;
+                        state <= c0_out_v ? CLK_ACT_CACHE_0 : CONV_0_RUNNING;
                     end
+
+                    CLK_ACT_CACHE_0: begin
+                        // signal activation_cache 0 to collect a value
+                        ac_c0_clk <= 1;
+                        state = RST_CONV_1;
+                    end
+
+                    RST_CONV_1: begin
+                        // signal conv1 to reset and run
+                        ac_c0_clk <= 0;
+                        c1_rst <= 1;
+                        state <= CONV_1_RUNNING;
+                    end
+
+                    CONV_1_RUNNING: begin
+                        // wait until conv1 has run
+                        c1_rst <= 0;
+                        state <= c1_out_v ? WAITING : CONV_1_RUNNING;
+                    end
+
                     // OUTPUT: begin
                     //     // nothing
                     // end
@@ -115,10 +184,10 @@ module network #(
                 //n_clk_ticks <= n_clk_ticks + 1;
             end
 
-            sample_out0 <= c0_out[8*W-1:7*W] << 2;
-            sample_out1 <= c0_out[7*W-1:6*W] << 2;
-            sample_out2 <= c0_out[6*W-1:5*W] << 2;
-            sample_out3 <= c0_out[5*W-1:4*W] << 2;
+            sample_out0 <= c1_out[8*W-1:7*W] << 2;
+            sample_out1 <= c1_out[7*W-1:6*W] << 2;
+            sample_out2 <= c1_out[6*W-1:5*W] << 2;
+            sample_out3 <= c1_out[5*W-1:4*W] << 2;
 
         end
     end
