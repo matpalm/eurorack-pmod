@@ -112,52 +112,51 @@ module network #(
     assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2} << 4*W;
     assign c0a3 = {lsb_out_in0_3, lsb_out_in1_3, lsb_out_in2_3, lsb_out_in3_3} << 4*W;
 
-    // TODO put relu back!
     conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv0")) conv0 (
-        .clk(clk), .rst(c0_rst), .apply_relu(1'b0),
+        .clk(clk), .rst(c0_rst), .apply_relu(1'b1),
         .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
         .packed_out(c0_out),
         .out_v(c0_out_v));
 
-    // //--------------------------------
-    // // conv 0 activation cache
+    //--------------------------------
+    // conv 0 activation cache
 
-    // reg ac_c0_clk = 0;
-    // reg signed [D*W-1:0] ac_c0_out_l0;
-    // reg signed [D*W-1:0] ac_c0_out_l1;
-    // reg signed [D*W-1:0] ac_c0_out_l2;
-    // reg signed [D*W-1:0] ac_c0_out_l3;
-    // localparam C0_DILATION = 4;
+    reg ac_c0_clk = 0;
+    reg signed [D*W-1:0] ac_c0_out_l0;
+    reg signed [D*W-1:0] ac_c0_out_l1;
+    reg signed [D*W-1:0] ac_c0_out_l2;
+    reg signed [D*W-1:0] ac_c0_out_l3;
+    localparam C0_DILATION = 4;
 
-    // activation_cache #(.W(W), .D(D), .DILATION(C0_DILATION)) activation_cache_c0 (
-    //     .clk(ac_c0_clk), .rst(rst), .inp(c0_out),
-    //     .out_l0(ac_c0_out_l0),
-    //     .out_l1(ac_c0_out_l1),
-    //     .out_l2(ac_c0_out_l2),
-    //     .out_l3(ac_c0_out_l3)
-    // );
+    activation_cache #(.W(W), .D(D), .DILATION(C0_DILATION)) activation_cache_c0 (
+        .clk(ac_c0_clk), .rst(rst), .inp(c0_out),
+        .out_l0(ac_c0_out_l0),
+        .out_l1(ac_c0_out_l1),
+        .out_l2(ac_c0_out_l2),
+        .out_l3(ac_c0_out_l3)
+    );
 
-    // //--------------------------------
-    // // conv 1 block
+    //--------------------------------
+    // conv 1 block
 
-    // reg c1_rst = 0;
-    // reg signed [D*W-1:0] c1a0;
-    // reg signed [D*W-1:0] c1a1;
-    // reg signed [D*W-1:0] c1a2;
-    // reg signed [D*W-1:0] c1a3;
-    // reg signed [D*W-1:0] c1_out;
-    // reg c1_out_v;
+    reg c1_rst = 0;
+    reg signed [D*W-1:0] c1a0;
+    reg signed [D*W-1:0] c1a1;
+    reg signed [D*W-1:0] c1a2;
+    reg signed [D*W-1:0] c1a3;
+    reg signed [D*W-1:0] c1_out;
+    reg c1_out_v;
 
-    // assign c1a0 = ac_c0_out_l0;
-    // assign c1a1 = ac_c0_out_l1;
-    // assign c1a2 = ac_c0_out_l2;
-    // assign c1a3 = ac_c0_out_l3;
+    assign c1a0 = ac_c0_out_l0;
+    assign c1a1 = ac_c0_out_l1;
+    assign c1a2 = ac_c0_out_l2;
+    assign c1a3 = ac_c0_out_l3;
 
-    // conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
-    //     .clk(clk), .rst(c1_rst), .apply_relu(1'b0),
-    //     .packed_a0(c1a0), .packed_a1(c1a1), .packed_a2(c1a2), .packed_a3(c1a3),
-    //     .packed_out(c1_out),
-    //     .out_v(c1_out_v));
+    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
+        .clk(clk), .rst(c1_rst), .apply_relu(1'b0),
+        .packed_a0(c1a0), .packed_a1(c1a1), .packed_a2(c1a2), .packed_a3(c1a3),
+        .packed_out(c1_out),
+        .out_v(c1_out_v));
 
     //---------------------------------
     // main network state machine
@@ -201,32 +200,32 @@ module network #(
                     CONV_0_RUNNING: begin
                         // wait until conv0 has run
                         c0_rst <= 0;
-                        // state <= c0_out_v ? CLK_ACT_CACHE_0 : CONV_0_RUNNING;
-                        state <= c0_out_v ? OUTPUT : CONV_0_RUNNING;
+                        state <= c0_out_v ? CLK_ACT_CACHE_0 : CONV_0_RUNNING;
+                        //state <= c0_out_v ? OUTPUT : CONV_0_RUNNING;
                     end
 
-                    // CLK_ACT_CACHE_0: begin
-                    //     // signal activation_cache 0 to collect a value
-                    //     ac_c0_clk <= 1;
-                    //     state = RST_CONV_1;
-                    // end
+                    CLK_ACT_CACHE_0: begin
+                        // signal activation_cache 0 to collect a value
+                        ac_c0_clk <= 1;
+                        state = RST_CONV_1;
+                    end
 
-                    // RST_CONV_1: begin
-                    //     // signal conv1 to reset and run
-                    //     ac_c0_clk <= 0;
-                    //     c1_rst <= 1;
-                    //     state <= CONV_1_RUNNING;
-                    // end
+                    RST_CONV_1: begin
+                        // signal conv1 to reset and run
+                        ac_c0_clk <= 0;
+                        c1_rst <= 1;
+                        state <= CONV_1_RUNNING;
+                    end
 
-                    // CONV_1_RUNNING: begin
-                    //     // wait until conv1 has run
-                    //     c1_rst <= 0;
-                    //     state <= c1_out_v ? OUTPUT : CONV_1_RUNNING;
-                    // end
+                    CONV_1_RUNNING: begin
+                        // wait until conv1 has run
+                        c1_rst <= 0;
+                        state <= c1_out_v ? OUTPUT : CONV_1_RUNNING;
+                    end
 
                     OUTPUT: begin
-                        // final net output is conv2 output
-                        out0 <= c0_out[8*W-1:7*W] << 2;
+                        // final net output is last conv output
+                        out0 <= c1_out[8*W-1:7*W] << 2;
                         out1 <= 0;
                         out2 <= 0;
                         out3 <= 0;

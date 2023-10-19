@@ -23,7 +23,8 @@ module conv1d #(
         CLIP_LOWER       = 3'b011,
         CLIP_UPPER       = 3'b100,
         SINGLE_W         = 3'b101,
-        OUTPUT           = 3'b110;
+        APPLY_RELU       = 3'b110,
+        OUTPUT           = 3'b111;
     reg [2:0] state = MAT_MUL_RUNNING;
 
     reg kernel0_v;
@@ -131,23 +132,29 @@ module conv1d #(
                     for (i=0; i<D; i=i+1) begin
                         result[i] <= accum[i][27:12];
                     end
+                    state = APPLY_RELU;
+                end
+                APPLY_RELU: begin
+                    for (i=0; i<D; i=i+1) begin
+                        result[i] <= apply_relu ? `relu(result[i]) : result[i];
+                    end
                     state = OUTPUT;
                 end
                 OUTPUT: begin
                     // TODO can't do this ?
                     // for (i=0; i<D; i=i+1) begin
-                    //     packed_out[(D-i)*W-1:(D-i-1)*W] <= apply_relu ? `relu(result[i]) : result[i];
+                    //     packed_out[(D-i)*W-1:(D-i-1)*W] <= result[i];
                     // end
 
                     // TODO!!!! having to do this assumes D=8 :/
-                    packed_out[8*W-1:7*W] <= apply_relu ? `relu(result[0]) : result[0];
-                    packed_out[7*W-1:6*W] <= apply_relu ? `relu(result[1]) : result[1];
-                    packed_out[6*W-1:5*W] <= apply_relu ? `relu(result[2]) : result[2];
-                    packed_out[5*W-1:4*W] <= apply_relu ? `relu(result[3]) : result[3];
-                    packed_out[4*W-1:3*W] <= apply_relu ? `relu(result[4]) : result[4];
-                    packed_out[3*W-1:2*W] <= apply_relu ? `relu(result[5]) : result[5];
-                    packed_out[2*W-1:1*W] <= apply_relu ? `relu(result[6]) : result[6];
-                    packed_out[1*W-1:0*W] <= apply_relu ? `relu(result[7]) : result[7];
+                    packed_out[8*W-1:7*W] <= result[0];
+                    packed_out[7*W-1:6*W] <= result[1];
+                    packed_out[6*W-1:5*W] <= result[2];
+                    packed_out[5*W-1:4*W] <= result[3];
+                    packed_out[4*W-1:3*W] <= result[4];
+                    packed_out[3*W-1:2*W] <= result[5];
+                    packed_out[2*W-1:1*W] <= result[6];
+                    packed_out[1*W-1:0*W] <= result[7];
                     out_v <= 1;
                 end
             endcase
