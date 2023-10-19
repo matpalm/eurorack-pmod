@@ -31,7 +31,7 @@ module network #(
         CONV_3_RUNNING  = 4'b1011,
         OUTPUT          = 4'b1100;
 
-    reg [3:0] state = CLK_LSB;
+    reg [3:0] state;
 
     //--------------------------------
     // left shift buffers
@@ -45,9 +45,9 @@ module network #(
     reg signed [W-1:0] lsb_out_in0_3;
 
     assign shifted_sample_in0 = sample_in0 >>> 2;
-    assign shifted_sample_in1 = sample_in1 >>> 2;
-    assign shifted_sample_in2 = sample_in2 >>> 2;
-    //assign shifted_sample_in3 = sample_in3 >>> 2;
+    assign shifted_sample_in1 = 0; //sample_in1 >>> 2;
+    assign shifted_sample_in2 = 0; //sample_in2 >>> 2;
+    assign shifted_sample_in3 = 0; //sample_in3 >>> 2;
 
     left_shift_buffer #(.W(W)) lsb_in0 (
         .clk(lsb_clk), .rst(rst),
@@ -76,18 +76,16 @@ module network #(
         .out_0(lsb_out_in2_0), .out_1(lsb_out_in2_1), .out_2(lsb_out_in2_2), .out_3(lsb_out_in2_3)
     );
 
-    // TODO: add this in
-
     reg signed [W-1:0] lsb_out_in3_0 = 0;
     reg signed [W-1:0] lsb_out_in3_1 = 0;
     reg signed [W-1:0] lsb_out_in3_2 = 0;
     reg signed [W-1:0] lsb_out_in3_3 = 0;
 
-    // left_shift_buffer #(.W(W)) lsb_in3 (
-    //     .clk(lsb_clk), .rst(rst),
-    //     .inp(sample_in3),
-    //     .out_0(lsb_out_in3_0), .out_1(lsb_out_in3_1), .out_2(lsb_out_in3_2), .out_3(lsb_out_in3_3)
-    // );
+    left_shift_buffer #(.W(W)) lsb_in3 (
+        .clk(lsb_clk), .rst(rst),
+        .inp(shifted_sample_in3),
+        .out_0(lsb_out_in3_0), .out_1(lsb_out_in3_1), .out_2(lsb_out_in3_2), .out_3(lsb_out_in3_3)
+    );
 
     //--------------------------------
     // conv 0 block
@@ -224,9 +222,10 @@ module network #(
             end
 
             sample_out0 <= c1_out[8*W-1:7*W] << 2;
-            sample_out1 <= 0; // c1_out[7*W-1:6*W] << 2;
-            sample_out2 <= 0; // c1_out[6*W-1:5*W] << 2;
-            sample_out3 <= 0; // c1_out[5*W-1:4*W] << 2;
+
+            sample_out1 <= lsb_out_in0_0 << 2; //0; // c1_out[7*W-1:6*W] << 2;
+            sample_out2 <= lsb_out_in0_1 << 2; //0; c1_out[6*W-1:5*W] << 2;
+            sample_out3 <= lsb_out_in0_2 << 2; //0; c1_out[5*W-1:4*W] << 2;
 
         end
     end
