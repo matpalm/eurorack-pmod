@@ -3,6 +3,8 @@
 // a . b_values -> out
 // (1, 8) . (8, 8) -> (1, 8)
 
+// TODO: could pack out as well?
+
 module row_by_matrix_multiply #(
     parameter W=16,  // width for each element
     parameter D=8,   // size of packed port arrays

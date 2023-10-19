@@ -1,6 +1,6 @@
 module network #(
-    parameter W = 16,
-    parameter D = 8
+    parameter W = 16,  // width for each element
+    parameter D = 8    // size of packed port arrays
 )(
     input rst,
     input clk,
@@ -23,29 +23,71 @@ module network #(
         CLK_ACT_CACHE_0 = 4'b0011,
         RST_CONV_1      = 4'b0100,
         CONV_1_RUNNING  = 4'b0101,
+        CLK_ACT_CACHE_1 = 4'b0110,
+        RST_CONV_2      = 4'b0111,
+        CONV_2_RUNNING  = 4'b1000,
+        CLK_ACT_CACHE_2 = 4'b1001,
+        RST_CONV_3      = 4'b1010,
+        CONV_3_RUNNING  = 4'b1011,
+        OUTPUT          = 4'b1100;
 
-        WAITING         = 4'b1110,
-        OUTPUT          = 4'b1111;
-    reg [3:0] state;
+    reg [3:0] state = CLK_LSB;
 
-    //-------------------------------------
-    // left shift buffer
+    //--------------------------------
+    // left shift buffers
+    // TOOD: pack these too
 
     reg lsb_clk =0;
-    reg signed [W-1:0] lsb_out_d0;
-    reg signed [W-1:0] lsb_out_d1;
-    reg signed [W-1:0] lsb_out_d2;
-    reg signed [W-1:0] lsb_out_d3;
-    reg signed [W-1:0] lsb_input;
 
-    // we always right shift input from 5V = 20_000 to be 5V = 5_000
-    assign lsb_input = sample_in0 >>> 2;
+    reg signed [W-1:0] lsb_out_in0_0;
+    reg signed [W-1:0] lsb_out_in0_1;
+    reg signed [W-1:0] lsb_out_in0_2;
+    reg signed [W-1:0] lsb_out_in0_3;
 
-    left_shift_buffer lsb (
+    assign shifted_sample_in0 = sample_in0 >>> 2;
+    assign shifted_sample_in1 = sample_in1 >>> 2;
+    assign shifted_sample_in2 = sample_in2 >>> 2;
+    //assign shifted_sample_in3 = sample_in3 >>> 2;
+
+    left_shift_buffer #(.W(W)) lsb_in0 (
         .clk(lsb_clk), .rst(rst),
-        .inp(lsb_input),
-        .out_d0(lsb_out_d0), .out_d1(lsb_out_d1), .out_d2(lsb_out_d2), .out_d3(lsb_out_d3)
+        .inp(shifted_sample_in0),
+        .out_0(lsb_out_in0_0), .out_1(lsb_out_in0_1), .out_2(lsb_out_in0_2), .out_3(lsb_out_in0_3)
     );
+    reg signed [W-1:0] lsb_out_in1_0;
+    reg signed [W-1:0] lsb_out_in1_1;
+    reg signed [W-1:0] lsb_out_in1_2;
+    reg signed [W-1:0] lsb_out_in1_3;
+
+    left_shift_buffer #(.W(W)) lsb_in1 (
+        .clk(lsb_clk), .rst(rst),
+        .inp(shifted_sample_in1),
+        .out_0(lsb_out_in1_0), .out_1(lsb_out_in1_1), .out_2(lsb_out_in1_2), .out_3(lsb_out_in1_3)
+    );
+
+    reg signed [W-1:0] lsb_out_in2_0;
+    reg signed [W-1:0] lsb_out_in2_1;
+    reg signed [W-1:0] lsb_out_in2_2;
+    reg signed [W-1:0] lsb_out_in2_3;
+
+    left_shift_buffer #(.W(W)) lsb_in2 (
+        .clk(lsb_clk), .rst(rst),
+        .inp(shifted_sample_in2),
+        .out_0(lsb_out_in2_0), .out_1(lsb_out_in2_1), .out_2(lsb_out_in2_2), .out_3(lsb_out_in2_3)
+    );
+
+    // TODO: add this in
+
+    reg signed [W-1:0] lsb_out_in3_0 = 0;
+    reg signed [W-1:0] lsb_out_in3_1 = 0;
+    reg signed [W-1:0] lsb_out_in3_2 = 0;
+    reg signed [W-1:0] lsb_out_in3_3 = 0;
+
+    // left_shift_buffer #(.W(W)) lsb_in3 (
+    //     .clk(lsb_clk), .rst(rst),
+    //     .inp(sample_in3),
+    //     .out_0(lsb_out_in3_0), .out_1(lsb_out_in3_1), .out_2(lsb_out_in3_2), .out_3(lsb_out_in3_3)
+    // );
 
     //--------------------------------
     // conv 0 block
@@ -59,13 +101,12 @@ module network #(
     reg signed [D*W-1:0] c0_out;
     reg c0_out_v;
 
-    // output from left shift buffer sits in c0a0[0] with all other c0a0 value 0
-    assign c0a0 = lsb_out_d0 << (D-1)*W;
-    assign c0a1 = lsb_out_d1 << (D-1)*W;
-    assign c0a2 = lsb_out_d2 << (D-1)*W;
-    assign c0a3 = lsb_out_d3 << (D-1)*W;
+    assign c0a0 = {lsb_out_in0_0, lsb_out_in1_0, lsb_out_in2_0, lsb_out_in3_0} << 4*W;
+    assign c0a1 = {lsb_out_in0_1, lsb_out_in1_1, lsb_out_in2_1, lsb_out_in3_1} << 4*W;
+    assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2} << 4*W;
+    assign c0a3 = {lsb_out_in0_3, lsb_out_in1_3, lsb_out_in2_3, lsb_out_in3_3} << 4*W;
 
-    conv1d #(.B_VALUES("weights/qconv0")) conv0 (
+    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv0")) conv0 (
         .clk(clk), .rst(c0_rst), .apply_relu(1'b1),
         .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
         .packed_out(c0_out),
@@ -111,12 +152,8 @@ module network #(
         .packed_out(c1_out),
         .out_v(c1_out_v));
 
-    //-------------------------------------
-    // clock handling
-
-    // reg signed [2*W-1:0] n_clk_ticks;
-    // reg signed [W-1:0] n_sample_clk_ticks;
-    // reg signed [2*W-1:0] n_dps;
+    //---------------------------------
+    // main network state machine
 
     logic prev_sample_clk;
 
@@ -134,8 +171,10 @@ module network #(
                 //n_sample_clk_ticks <= n_sample_clk_ticks + 1;
             end else begin
                 case (state)
+
                     WAITING: begin
                         // nothing
+                        //n_ticks_in_WAITING <= n_ticks_in_WAITING + 1;
                     end
 
                     CLK_LSB: begin
@@ -185,9 +224,9 @@ module network #(
             end
 
             sample_out0 <= c1_out[8*W-1:7*W] << 2;
-            sample_out1 <= c1_out[7*W-1:6*W] << 2;
-            sample_out2 <= c1_out[6*W-1:5*W] << 2;
-            sample_out3 <= c1_out[5*W-1:4*W] << 2;
+            sample_out1 <= 0; // c1_out[7*W-1:6*W] << 2;
+            sample_out2 <= 0; // c1_out[6*W-1:5*W] << 2;
+            sample_out3 <= 0; // c1_out[5*W-1:4*W] << 2;
 
         end
     end

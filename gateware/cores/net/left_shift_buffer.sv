@@ -6,19 +6,19 @@ module left_shift_buffer #(
     input                     clk,
     input                     rst,
     input signed [W-1:0]      inp,
-    output reg signed [W-1:0] out_d0,
-    output reg signed [W-1:0] out_d1,
-    output reg signed [W-1:0] out_d2,
-    output reg signed [W-1:0] out_d3
+    output reg signed [W-1:0] out_0,  // t_-3
+    output reg signed [W-1:0] out_1,  // t_-2
+    output reg signed [W-1:0] out_2,  // t_-1
+    output reg signed [W-1:0] out_3   // t_0
 );
 
     reg [W-1:0] buffer [0:3];
     integer i;
 
-    assign out_d0 = buffer[0];
-    assign out_d1 = buffer[1];
-    assign out_d2 = buffer[2];
-    assign out_d3 = buffer[3];
+    assign out_0 = buffer[0];
+    assign out_1 = buffer[1];
+    assign out_2 = buffer[2];
+    assign out_3 = buffer[3];
 
     initial begin
         for(i=0; i<4; i=i+1)

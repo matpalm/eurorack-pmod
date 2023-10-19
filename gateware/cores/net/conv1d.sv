@@ -20,9 +20,11 @@ module conv1d #(
         MAT_MUL_RUNNING  = 3'b000,
         ACCUMULATE       = 3'b001,
         BIAS_ADD         = 3'b010,
-        SINGLE_W         = 3'b011,
-        OUTPUT           = 3'b100;
-    reg [2:0] c1d_state = MAT_MUL_RUNNING;
+        CLIP_LOWER       = 3'b011,
+        CLIP_UPPER       = 3'b100,
+        SINGLE_W         = 3'b101,
+        OUTPUT           = 3'b110;
+    reg [2:0] state = MAT_MUL_RUNNING;
 
     reg kernel0_v;
     reg kernel1_v;
@@ -86,32 +88,50 @@ module conv1d #(
 
     integer i;
 
+    // the max value for single precision is 7.999755859375 whereas the min value is -8
+    // so to avoid overflow we clip the double width precision
+    // value between these bounds _before_ the single precision conversion
+    localparam int signed lower_bound = 32'b11111000000000000000000000000000;  // -8
+    localparam int signed upper_bound = 32'b00000111111111111111000000000000;  // 7.999755859375
+
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            c1d_state <= MAT_MUL_RUNNING;
+            state <= MAT_MUL_RUNNING;
             out_v <= 0;
         end else
-            case(c1d_state)
+            case(state)
                 MAT_MUL_RUNNING: begin
-                    if (kernel0_v && kernel1_v && kernel2_v && kernel3_v) c1d_state = ACCUMULATE;
+                    if (kernel0_v && kernel1_v && kernel2_v && kernel3_v) state = ACCUMULATE;
                 end
                 ACCUMULATE: begin
                     for (i=0; i<D; i=i+1) begin
                         accum[i] <= kernel0_out[i] + kernel1_out[i] + kernel2_out[i] + kernel3_out[i];
                     end
-                    c1d_state <= BIAS_ADD;
+                    state <= BIAS_ADD;
                 end
                 BIAS_ADD: begin
                     for (i=0; i<D; i=i+1) begin
                         accum[i] <= accum[i] + bias_values[i];
                     end
-                    c1d_state <= SINGLE_W;
+                    state <= CLIP_LOWER;
+                end
+                CLIP_LOWER: begin
+                    for (i=0; i<D; i=i+1) begin
+                        accum[i] <= accum[i] < lower_bound ? lower_bound : accum[i];
+                    end
+                    state <= CLIP_UPPER;
+                end
+                CLIP_UPPER: begin
+                    for (i=0; i<D; i=i+1) begin
+                        accum[i] <= accum[i] > upper_bound ? upper_bound : accum[i];
+                    end
+                    state <= SINGLE_W;
                 end
                 SINGLE_W: begin
                     for (i=0; i<D; i=i+1) begin
                         result[i] <= accum[i][27:12];
                     end
-                    c1d_state = OUTPUT;
+                    state = OUTPUT;
                 end
                 OUTPUT: begin
                     // TODO can't do this ?
