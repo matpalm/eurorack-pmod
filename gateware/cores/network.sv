@@ -153,10 +153,50 @@ module network #(
     assign c1a3 = ac_c0_out_l3;
 
     conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
-        .clk(clk), .rst(c1_rst), .apply_relu(1'b0),
+        .clk(clk), .rst(c1_rst), .apply_relu(1'b1),
         .packed_a0(c1a0), .packed_a1(c1a1), .packed_a2(c1a2), .packed_a3(c1a3),
         .packed_out(c1_out),
         .out_v(c1_out_v));
+
+    // --------------------------------
+    // conv 1 activation cache
+
+    reg ac_c1_clk = 0;
+    reg signed [D*W-1:0] ac_c1_out_l0;
+    reg signed [D*W-1:0] ac_c1_out_l1;
+    reg signed [D*W-1:0] ac_c1_out_l2;
+    reg signed [D*W-1:0] ac_c1_out_l3;
+    localparam C1_DILATION = 4*4;
+
+    activation_cache #(.W(W), .D(D), .DILATION(C1_DILATION)) activation_cache_c1 (
+        .clk(ac_c1_clk), .rst(rst), .inp(c1_out),
+        .out_l0(ac_c1_out_l0),
+        .out_l1(ac_c1_out_l1),
+        .out_l2(ac_c1_out_l2),
+        .out_l3(ac_c1_out_l3)
+    );
+
+    //--------------------------------
+    // conv 2 block
+
+    reg c2_rst = 0;
+    reg signed [D*W-1:0] c2a0;
+    reg signed [D*W-1:0] c2a1;
+    reg signed [D*W-1:0] c2a2;
+    reg signed [D*W-1:0] c2a3;
+    reg signed [D*W-1:0] c2_out;
+    reg c2_out_v;
+
+    assign c2a0 = ac_c1_out_l0;
+    assign c2a1 = ac_c1_out_l1;
+    assign c2a2 = ac_c1_out_l2;
+    assign c2a3 = ac_c1_out_l3;
+
+    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv2")) conv2 (
+        .clk(clk), .rst(c2_rst), .apply_relu(1'b0),
+        .packed_a0(c2a0), .packed_a1(c2a1), .packed_a2(c2a2), .packed_a3(c2a3),
+        .packed_out(c2_out),
+        .out_v(c2_out_v));
 
     //---------------------------------
     // main network state machine
@@ -168,13 +208,17 @@ module network #(
 
     logic prev_sample_clk;
 
+    // keep timing of clk ticks vs num ticks in output
+    // ( since output is the last state and implies head room )
+    logic signed [2*W-1:0] n_clk_ticks;
+    logic signed [2*W-1:0] n_output_ticks;
+
     always_ff @(posedge clk) begin
         prev_sample_clk <= sample_clk;
         if (rst) begin
             prev_sample_clk <= 0;
-            //n_sample_clk_ticks <= 0;
-            //n_clk_ticks <= 0;
-            //n_dps <= 0;
+            n_clk_ticks <= 0;
+            n_output_ticks <= 0;
             state <= WAITING;
         end else begin
             if (sample_clk == 1 && sample_clk != prev_sample_clk) begin
@@ -182,7 +226,6 @@ module network #(
                 //n_sample_clk_ticks <= n_sample_clk_ticks + 1;
             end else begin
                 case (state)
-
 
                     CLK_LSB: begin
                         // signal left shift buffer to run once
@@ -201,7 +244,6 @@ module network #(
                         // wait until conv0 has run
                         c0_rst <= 0;
                         state <= c0_out_v ? CLK_ACT_CACHE_0 : CONV_0_RUNNING;
-                        //state <= c0_out_v ? OUTPUT : CONV_0_RUNNING;
                     end
 
                     CLK_ACT_CACHE_0: begin
@@ -220,19 +262,39 @@ module network #(
                     CONV_1_RUNNING: begin
                         // wait until conv1 has run
                         c1_rst <= 0;
-                        state <= c1_out_v ? OUTPUT : CONV_1_RUNNING;
+                        state <= c1_out_v ? CLK_ACT_CACHE_1 : CONV_1_RUNNING;
+                    end
+
+                    CLK_ACT_CACHE_1: begin
+                        // signal activation_cache 1 to collect a value
+                        ac_c1_clk <= 1;
+                        state = RST_CONV_2;
+                    end
+
+                    RST_CONV_2: begin
+                        // signal conv2 to reset and run
+                        ac_c1_clk <= 0;
+                        c2_rst <= 1;
+                        state <= CONV_2_RUNNING;
+                    end
+
+                    CONV_2_RUNNING: begin
+                        // wait until conv2 has run
+                        c2_rst <= 0;
+                        state <= c2_out_v ? OUTPUT : CONV_2_RUNNING;
                     end
 
                     OUTPUT: begin
                         // final net output is last conv output
-                        out0 <= c1_out[8*W-1:7*W] << 2;
-                        out1 <= 0;
-                        out2 <= 0;
+                        out0 <= c2_out[8*W-1:7*W] << 2;
+                        out1 <= n_clk_ticks >> W;
+                        out2 <= n_output_ticks >> W;
                         out3 <= 0;
+                        n_output_ticks <= n_output_ticks + 1;
                     end
 
                 endcase
-                //n_clk_ticks <= n_clk_ticks + 1;
+                n_clk_ticks <= n_clk_ticks + 1;
             end
 
         end
