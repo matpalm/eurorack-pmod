@@ -44,8 +44,8 @@ module network #(
 
     // TODO: for now just fixed to e1 = e2 = 0 => square
     assign shifted_sample_in0 = sample_in0 >>> 2;
-    assign shifted_sample_in1 = 0; //sample_in1 >>> 2;
-    assign shifted_sample_in2 = 0; //sample_in2 >>> 2;
+    assign shifted_sample_in1 = sample_in1 >>> 2;  // 8V shifts to 0x1F40
+    assign shifted_sample_in2 = sample_in2 >>> 2;  // 8V shifts to 0x1F40
     assign shifted_sample_in3 = 0; //sample_in3 >>> 2;
 
     reg lsb_clk =0;
@@ -105,6 +105,8 @@ module network #(
     reg signed [D*W-1:0] c0_out;
     reg c0_out_v;
 
+    // concat W elements, and then left shift them another 4, to make them
+    // effectively the first 4 elements in an 8D array
     assign c0a0 = {lsb_out_in0_0, lsb_out_in1_0, lsb_out_in2_0, lsb_out_in3_0} << 4*W;
     assign c0a1 = {lsb_out_in0_1, lsb_out_in1_1, lsb_out_in2_1, lsb_out_in3_1} << 4*W;
     assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2} << 4*W;
@@ -225,9 +227,9 @@ module network #(
                     OUTPUT: begin
                         // final net output is conv2 output
                         out0 <= c0_out[8*W-1:7*W] << 2;
-                        out1 <= 0; //c1_out[7*W-1:6*W];
-                        out2 <= 0; // c1_out[6*W-1:5*W];
-                        out3 <= 0; // c1_out[5*W-1:4*W];
+                        out1 <= 0;
+                        out2 <= 0;
+                        out3 <= 0;
                     end
 
                 endcase

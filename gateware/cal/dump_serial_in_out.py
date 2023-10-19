@@ -27,7 +27,8 @@ def decode_raw_samples(n, raw):
         lsb = raw[ix*2+1]
         value = (msb << 8) | lsb
         value_tc = twos_comp(value, 16)
-        sys.stdout.write(f"{ports[ix]} {hex(value)} ({value_tc}) ")
+        output = f"{ports[ix]} {hex(value)} ({value_tc})"
+        sys.stdout.write(str.ljust(output, 20))
 
 while True:
     # TODO: switch from sampling to full processing
