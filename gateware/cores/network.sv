@@ -42,7 +42,7 @@ module network #(
     reg signed [W-1:0] shifted_sample_in2;
     reg signed [W-1:0] shifted_sample_in3;
 
-    // TODO: for now just fixed to e1 = e2 = 0 => square
+    // NOTE: not shifted for cocotb version, but >>>2 shifted for eurorack pmod
     assign shifted_sample_in0 = sample_in0 >>> 2;
     assign shifted_sample_in1 = sample_in1 >>> 2;  // 8V shifts to 0x1F40
     assign shifted_sample_in2 = sample_in2 >>> 2;  // 8V shifts to 0x1F40
@@ -140,21 +140,13 @@ module network #(
     // conv 1 block
 
     reg c1_rst = 0;
-    reg signed [D*W-1:0] c1a0;
-    reg signed [D*W-1:0] c1a1;
-    reg signed [D*W-1:0] c1a2;
-    reg signed [D*W-1:0] c1a3;
     reg signed [D*W-1:0] c1_out;
     reg c1_out_v;
 
-    assign c1a0 = ac_c0_out_l0;
-    assign c1a1 = ac_c0_out_l1;
-    assign c1a2 = ac_c0_out_l2;
-    assign c1a3 = ac_c0_out_l3;
-
     conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
         .clk(clk), .rst(c1_rst), .apply_relu(1'b1),
-        .packed_a0(c1a0), .packed_a1(c1a1), .packed_a2(c1a2), .packed_a3(c1a3),
+        .packed_a0(ac_c0_out_l0), .packed_a1(ac_c0_out_l1),
+        .packed_a2(ac_c0_out_l2), .packed_a3(ac_c0_out_l3),
         .packed_out(c1_out),
         .out_v(c1_out_v));
 
@@ -180,23 +172,47 @@ module network #(
     // conv 2 block
 
     reg c2_rst = 0;
-    reg signed [D*W-1:0] c2a0;
-    reg signed [D*W-1:0] c2a1;
-    reg signed [D*W-1:0] c2a2;
-    reg signed [D*W-1:0] c2a3;
     reg signed [D*W-1:0] c2_out;
     reg c2_out_v;
 
-    assign c2a0 = ac_c1_out_l0;
-    assign c2a1 = ac_c1_out_l1;
-    assign c2a2 = ac_c1_out_l2;
-    assign c2a3 = ac_c1_out_l3;
-
     conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv2")) conv2 (
-        .clk(clk), .rst(c2_rst), .apply_relu(1'b0),
-        .packed_a0(c2a0), .packed_a1(c2a1), .packed_a2(c2a2), .packed_a3(c2a3),
+        .clk(clk), .rst(c2_rst), .apply_relu(1'b1),
+        .packed_a0(ac_c1_out_l0), .packed_a1(ac_c1_out_l1),
+        .packed_a2(ac_c1_out_l2), .packed_a3(ac_c1_out_l3),
         .packed_out(c2_out),
         .out_v(c2_out_v));
+
+    // --------------------------------
+    // conv 2 activation cache
+
+    reg ac_c2_clk = 0;
+    reg signed [D*W-1:0] ac_c2_out_l0;
+    reg signed [D*W-1:0] ac_c2_out_l1;
+    reg signed [D*W-1:0] ac_c2_out_l2;
+    reg signed [D*W-1:0] ac_c2_out_l3;
+    localparam C2_DILATION = 4*4*4;
+
+    activation_cache #(.W(W), .D(D), .DILATION(C2_DILATION)) activation_cache_c2 (
+        .clk(ac_c2_clk), .rst(rst), .inp(c2_out),
+        .out_l0(ac_c2_out_l0),
+        .out_l1(ac_c2_out_l1),
+        .out_l2(ac_c2_out_l2),
+        .out_l3(ac_c2_out_l3)
+    );
+
+    //--------------------------------
+    // conv 3 block
+
+    reg c3_rst = 0;
+    reg signed [D*W-1:0] c3_out;
+    reg c3_out_v;
+
+    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv3")) conv3 (
+        .clk(clk), .rst(c2_rst), .apply_relu(1'b0),
+        .packed_a0(ac_c2_out_l0), .packed_a1(ac_c2_out_l1),
+        .packed_a2(ac_c2_out_l2), .packed_a3(ac_c2_out_l3),
+        .packed_out(c3_out),
+        .out_v(c3_out_v));
 
     //---------------------------------
     // main network state machine
@@ -206,12 +222,13 @@ module network #(
     logic signed [W-1:0] out2;
     logic signed [W-1:0] out3;
 
-    logic prev_sample_clk;
-
     // keep timing of clk ticks vs num ticks in output
     // ( since output is the last state and implies head room )
     logic signed [2*W-1:0] n_clk_ticks;
     logic signed [2*W-1:0] n_output_ticks;
+
+    logic prev_sample_clk;
+
 
     always_ff @(posedge clk) begin
         prev_sample_clk <= sample_clk;
@@ -281,12 +298,32 @@ module network #(
                     CONV_2_RUNNING: begin
                         // wait until conv2 has run
                         c2_rst <= 0;
-                        state <= c2_out_v ? OUTPUT : CONV_2_RUNNING;
+                        state <= c2_out_v ? CLK_ACT_CACHE_2 : CONV_2_RUNNING;
+                    end
+
+                    CLK_ACT_CACHE_2: begin
+                        // signal activation_cache 2 to collect a value
+                        ac_c2_clk <= 1;
+                        state = RST_CONV_3;
+                    end
+
+                    RST_CONV_3: begin
+                        // signal conv3 to reset and run
+                        ac_c2_clk <= 0;
+                        c3_rst <= 1;
+                        state <= CONV_3_RUNNING;
+                    end
+
+                    CONV_3_RUNNING: begin
+                        // wait until conv3 has run
+                        c3_rst <= 0;
+                        state <= c3_out_v ? OUTPUT : CONV_3_RUNNING;
                     end
 
                     OUTPUT: begin
+                        // NOTE: not shifted for cocotb version, but <<2 shifted for eurorack pmod
                         // final net output is last conv output
-                        out0 <= c2_out[8*W-1:7*W] << 2;
+                        out0 <= c3_out[8*W-1:7*W] << 2;
                         out1 <= n_clk_ticks >> W;
                         out2 <= n_output_ticks >> W;
                         out3 <= 0;
