@@ -34,10 +34,10 @@ module conv1d #(
 
     // for whatever reason these don't have a valid value (just xxx ) during accumulation
     // but _can_ access kernel0.out (?)
-    reg signed [2*W-1:0]  kernel0_out [0:7];
-    reg signed [2*W-1:0]  kernel1_out [0:7];
-    reg signed [2*W-1:0]  kernel2_out [0:7];
-    reg signed [2*W-1:0]  kernel3_out [0:7];
+    reg signed [2*D*W-1:0]  kernel0_out;
+    reg signed [2*D*W-1:0]  kernel1_out;
+    reg signed [2*D*W-1:0]  kernel2_out;
+    reg signed [2*D*W-1:0]  kernel3_out;
 
     // double width accumulator
     reg signed [2*W-1:0]  accum [0:7];
@@ -56,44 +56,60 @@ module conv1d #(
     row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k0"})) kernel0 (
         .clk(clk), .rst(rst),
         .packed_a(packed_a0),
-        .out_d0(kernel0_out[0]), .out_d1(kernel0_out[1]), .out_d2(kernel0_out[2]), .out_d3(kernel0_out[3]),
-        .out_d4(kernel0_out[4]), .out_d5(kernel0_out[5]), .out_d6(kernel0_out[6]), .out_d7(kernel0_out[7]),
+        .packed_out(kernel0_out),
         .out_v(kernel0_v)
     );
 
     row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k1"})) kernel1 (
         .clk(clk), .rst(rst),
         .packed_a(packed_a1),
-        .out_d0(kernel1_out[0]), .out_d1(kernel1_out[1]), .out_d2(kernel1_out[2]), .out_d3(kernel1_out[3]),
-        .out_d4(kernel1_out[4]), .out_d5(kernel1_out[5]), .out_d6(kernel1_out[6]), .out_d7(kernel1_out[7]),
+        .packed_out(kernel1_out),
         .out_v(kernel1_v)
     );
 
     row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k2"})) kernel2 (
         .clk(clk), .rst(rst),
         .packed_a(packed_a2),
-        .out_d0(kernel2_out[0]), .out_d1(kernel2_out[1]), .out_d2(kernel2_out[2]), .out_d3(kernel2_out[3]),
-        .out_d4(kernel2_out[4]), .out_d5(kernel2_out[5]), .out_d6(kernel2_out[6]), .out_d7(kernel2_out[7]),
+        .packed_out(kernel2_out),
         .out_v(kernel2_v)
     );
 
     row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k3"})) kernel3 (
         .clk(clk), .rst(rst),
         .packed_a(packed_a3),
-        .out_d0(kernel3_out[0]), .out_d1(kernel3_out[1]), .out_d2(kernel3_out[2]), .out_d3(kernel3_out[3]),
-        .out_d4(kernel3_out[4]), .out_d5(kernel3_out[5]), .out_d6(kernel3_out[6]), .out_d7(kernel3_out[7]),
+        .packed_out(kernel3_out),
         .out_v(kernel3_v)
     );
 
     `define relu(a) (a[W-1] == 1 ) ? 0 : a
 
     integer i;
+    genvar j;
 
     // the max value for single precision is 7.999755859375 whereas the min value is -8
     // so to avoid overflow we clip the double width precision
     // value between these bounds _before_ the single precision conversion
     localparam int signed lower_bound = 32'b11111000000000000000000000000000;  // -8
     localparam int signed upper_bound = 32'b00000111111111111111000000000000;  // 7.999755859375
+
+    // kernel output unpacked. this variable only introduced to
+    // allow a generate block for assign since it uses j in the slicing
+    logic signed [2*W-1:0]  kernel_N_out_sum [0:D-1];
+    generate
+        for (j=0; j<D; j++) begin
+            localparam a = (D-j)*2*W-1;
+            localparam b = (D-j-1)*2*W;
+            assign kernel_N_out_sum[j] = kernel0_out[a:b] + kernel1_out[a:b] + kernel2_out[a:b] + kernel3_out[a:b];
+        end
+    endgenerate
+
+    // similarily, since packedout has variable in slicing, we need to
+    // explicitly assign it.
+    generate
+        for (j=0; j<D; j++) begin
+            assign packed_out[(D-j)*W-1:(D-j-1)*W] = result[j];
+        end
+    endgenerate
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -106,7 +122,7 @@ module conv1d #(
                 end
                 ACCUMULATE: begin
                     for (i=0; i<D; i=i+1) begin
-                        accum[i] <= kernel0_out[i] + kernel1_out[i] + kernel2_out[i] + kernel3_out[i];
+                        accum[i] <= kernel_N_out_sum[i];
                     end
                     state <= BIAS_ADD;
                 end
@@ -141,24 +157,13 @@ module conv1d #(
                     state = OUTPUT;
                 end
                 OUTPUT: begin
-                    // TODO can't do this ?
-                    // for (i=0; i<D; i=i+1) begin
-                    //     packed_out[(D-i)*W-1:(D-i-1)*W] <= result[i];
-                    // end
-
-                    // TODO!!!! having to do this assumes D=8 :/
-                    packed_out[8*W-1:7*W] <= result[0];
-                    packed_out[7*W-1:6*W] <= result[1];
-                    packed_out[6*W-1:5*W] <= result[2];
-                    packed_out[5*W-1:4*W] <= result[3];
-                    packed_out[4*W-1:3*W] <= result[4];
-                    packed_out[3*W-1:2*W] <= result[5];
-                    packed_out[2*W-1:1*W] <= result[6];
-                    packed_out[1*W-1:0*W] <= result[7];
+                    // NOTE: packed_out assigned in generate block from result
                     out_v <= 1;
                 end
             endcase
     end
+
+
 
 endmodule
 
