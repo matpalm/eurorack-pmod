@@ -2,7 +2,7 @@
 
 module conv1d #(
     parameter W=16,  // width for each element
-    parameter D=8,   // size of packed port arrays
+    parameter D=16,  // size of packed port arrays
     parameter B_VALUES
 )(
   input                        clk,
@@ -17,14 +17,14 @@ module conv1d #(
 );
 
     localparam
-        MAT_MUL_RUNNING  = 3'b000,
-        ACCUMULATE       = 3'b001,
-        BIAS_ADD         = 3'b010,
-        CLIP_LOWER       = 3'b011,
-        CLIP_UPPER       = 3'b100,
-        SINGLE_W         = 3'b101,
-        APPLY_RELU       = 3'b110,
-        OUTPUT           = 3'b111;
+        MAT_MUL_RUNNING  = 0,
+        ACCUMULATE       = 1,
+        BIAS_ADD         = 2,
+        CLIP_LOWER       = 3,
+        CLIP_UPPER       = 4,
+        SINGLE_W         = 5,
+        APPLY_RELU       = 6,
+        OUTPUT           = 7;
     reg [2:0] state = MAT_MUL_RUNNING;
 
     reg kernel0_v;
@@ -40,16 +40,16 @@ module conv1d #(
     reg signed [2*D*W-1:0]  kernel3_out;
 
     // double width accumulator
-    reg signed [2*W-1:0]  accum [0:7];
+    reg signed [2*W-1:0]  accum [0:D-1];
 
     // single width final result
-    reg signed [W-1:0]  result [0:7];
+    reg signed [W-1:0]  result [0:D-1];
 
     // bias values
     initial begin
         $readmemh({B_VALUES,"/bias.hex"}, bias_values);
     end
-    reg signed [2*W-1:0] bias_values [0:7];
+    reg signed [2*W-1:0] bias_values [0:D-1];
 
     // 4 kernel mat muls
 
@@ -145,6 +145,7 @@ module conv1d #(
                     state <= SINGLE_W;
                 end
                 SINGLE_W: begin
+                    // TODO: constants 12 and 27 won't work for other W :/
                     for (i=0; i<D; i=i+1) begin
                         result[i] <= accum[i][27:12];
                     end
