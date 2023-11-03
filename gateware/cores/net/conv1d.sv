@@ -1,19 +1,20 @@
 `default_nettype none
 
 module conv1d #(
-    parameter W=16,  // width for each element
-    parameter D=16,  // size of packed port arrays
+    parameter W,        // width for each element
+    parameter IN_D,     // size of packed port arrays
+    parameter OUT_D,    // size of packed port arrays
     parameter B_VALUES
 )(
-  input                        clk,
-  input                        rst,
-  input                        apply_relu,
-  input signed [D*W-1:0]       packed_a0,
-  input signed [D*W-1:0]       packed_a1,
-  input signed [D*W-1:0]       packed_a2,
-  input signed [D*W-1:0]       packed_a3,
-  output reg signed [D*W-1:0]  packed_out,
-  output reg                   out_v
+  input                            clk,
+  input                            rst,
+  input                            apply_relu,
+  input signed [IN_D*W-1:0]        packed_a0,
+  input signed [IN_D*W-1:0]        packed_a1,
+  input signed [IN_D*W-1:0]        packed_a2,
+  input signed [IN_D*W-1:0]        packed_a3,
+  output reg signed [OUT_D*W-1:0]  packed_out,
+  output reg                       out_v
 );
 
     localparam
@@ -34,51 +35,39 @@ module conv1d #(
 
     // for whatever reason these don't have a valid value (just xxx ) during accumulation
     // but _can_ access kernel0.out (?)
-    reg signed [2*D*W-1:0]  kernel0_out;
-    reg signed [2*D*W-1:0]  kernel1_out;
-    reg signed [2*D*W-1:0]  kernel2_out;
-    reg signed [2*D*W-1:0]  kernel3_out;
+    reg signed [2*OUT_D*W-1:0]  kernel0_out;
+    reg signed [2*OUT_D*W-1:0]  kernel1_out;
+    reg signed [2*OUT_D*W-1:0]  kernel2_out;
+    reg signed [2*OUT_D*W-1:0]  kernel3_out;
 
     // double width accumulator
-    reg signed [2*W-1:0]  accum [0:D-1];
+    reg signed [2*W-1:0]  accum [0:OUT_D-1];
 
     // single width final result
-    reg signed [W-1:0]  result [0:D-1];
+    reg signed [W-1:0]  result [0:OUT_D-1];
 
     // bias values
     initial begin
         $readmemh({B_VALUES,"/bias.hex"}, bias_values);
     end
-    reg signed [2*W-1:0] bias_values [0:D-1];
+    reg signed [2*W-1:0] bias_values [0:OUT_D-1];
 
     // 4 kernel mat muls
 
-    row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k0"})) kernel0 (
-        .clk(clk), .rst(rst),
-        .packed_a(packed_a0),
-        .packed_out(kernel0_out),
-        .out_v(kernel0_v)
+    row_by_matrix_multiply #(.W(W), .IN_D(IN_D), .OUT_D(OUT_D), .B_VALUES({B_VALUES,"/k0"})) kernel0 (
+        .clk(clk), .rst(rst), .packed_a(packed_a0), .packed_out(kernel0_out), .out_v(kernel0_v)
     );
 
-    row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k1"})) kernel1 (
-        .clk(clk), .rst(rst),
-        .packed_a(packed_a1),
-        .packed_out(kernel1_out),
-        .out_v(kernel1_v)
+    row_by_matrix_multiply #(.W(W), .IN_D(IN_D), .OUT_D(OUT_D), .B_VALUES({B_VALUES,"/k1"})) kernel1 (
+        .clk(clk), .rst(rst), .packed_a(packed_a1), .packed_out(kernel1_out), .out_v(kernel1_v)
     );
 
-    row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k2"})) kernel2 (
-        .clk(clk), .rst(rst),
-        .packed_a(packed_a2),
-        .packed_out(kernel2_out),
-        .out_v(kernel2_v)
+    row_by_matrix_multiply #(.W(W), .IN_D(IN_D), .OUT_D(OUT_D), .B_VALUES({B_VALUES,"/k2"})) kernel2 (
+        .clk(clk), .rst(rst), .packed_a(packed_a2), .packed_out(kernel2_out), .out_v(kernel2_v)
     );
 
-    row_by_matrix_multiply #(.B_VALUES({B_VALUES,"/k3"})) kernel3 (
-        .clk(clk), .rst(rst),
-        .packed_a(packed_a3),
-        .packed_out(kernel3_out),
-        .out_v(kernel3_v)
+    row_by_matrix_multiply #(.W(W), .IN_D(IN_D), .OUT_D(OUT_D), .B_VALUES({B_VALUES,"/k3"})) kernel3 (
+        .clk(clk), .rst(rst), .packed_a(packed_a3), .packed_out(kernel3_out), .out_v(kernel3_v)
     );
 
     `define relu(a) (a[W-1] == 1 ) ? 0 : a
@@ -94,11 +83,11 @@ module conv1d #(
 
     // kernel output unpacked. this variable only introduced to
     // allow a generate block for assign since it uses j in the slicing
-    logic signed [2*W-1:0]  kernel_N_out_sum [0:D-1];
+    logic signed [2*W-1:0]  kernel_N_out_sum [0:OUT_D-1];
     generate
-        for (j=0; j<D; j++) begin
-            localparam a = (D-j)*2*W-1;
-            localparam b = (D-j-1)*2*W;
+        for (j=0; j<OUT_D; j++) begin
+            localparam a = (OUT_D-j)*2*W-1;
+            localparam b = (OUT_D-j-1)*2*W;
             assign kernel_N_out_sum[j] = kernel0_out[a:b] + kernel1_out[a:b] + kernel2_out[a:b] + kernel3_out[a:b];
         end
     endgenerate
@@ -106,8 +95,8 @@ module conv1d #(
     // similarily, since packedout has variable in slicing, we need to
     // explicitly assign it.
     generate
-        for (j=0; j<D; j++) begin
-            assign packed_out[(D-j)*W-1:(D-j-1)*W] = result[j];
+        for (j=0; j<OUT_D; j++) begin
+            assign packed_out[(OUT_D-j)*W-1:(OUT_D-j-1)*W] = result[j];
         end
     endgenerate
 
@@ -121,38 +110,38 @@ module conv1d #(
                     if (kernel0_v && kernel1_v && kernel2_v && kernel3_v) state = ACCUMULATE;
                 end
                 ACCUMULATE: begin
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         accum[i] <= kernel_N_out_sum[i];
                     end
                     state <= BIAS_ADD;
                 end
                 BIAS_ADD: begin
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         accum[i] <= accum[i] + bias_values[i];
                     end
                     state <= CLIP_LOWER;
                 end
                 CLIP_LOWER: begin
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         accum[i] <= accum[i] < lower_bound ? lower_bound : accum[i];
                     end
                     state <= CLIP_UPPER;
                 end
                 CLIP_UPPER: begin
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         accum[i] <= accum[i] > upper_bound ? upper_bound : accum[i];
                     end
                     state <= SINGLE_W;
                 end
                 SINGLE_W: begin
                     // TODO: constants 12 and 27 won't work for other W :/
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         result[i] <= accum[i][27:12];
                     end
                     state = APPLY_RELU;
                 end
                 APPLY_RELU: begin
-                    for (i=0; i<D; i=i+1) begin
+                    for (i=0; i<OUT_D; i=i+1) begin
                         result[i] <= apply_relu ? `relu(result[i]) : result[i];
                     end
                     state = OUTPUT;
@@ -164,7 +153,6 @@ module conv1d #(
             endcase
     end
 
-
-
 endmodule
+
 

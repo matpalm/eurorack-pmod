@@ -3,8 +3,8 @@
 // a . b_values -> out
 
 module dot_product #(
-    parameter W=16,   // width for each element
-    parameter D=16,   // size of packed port arrays
+    parameter W,       // width for each element
+    parameter D,       // size of packed port arrays
     parameter B_VALUES
 )(
   input                        clk,
@@ -27,7 +27,7 @@ module dot_product #(
         MULTIPLY_ELEMENT     = 0,
         FINAL_ADD            = 1,
         DONE                 = 2;
-    reg [2:0] dp_state = MULTIPLY_ELEMENT;
+    reg [2:0] state = MULTIPLY_ELEMENT;
 
     // see https://projectf.io/posts/fixed-point-numbers-in-verilog/
     reg signed [2*W-1:0] acc0;
@@ -50,19 +50,19 @@ module dot_product #(
             acc0 <= 0;
             product0 <= 0;
             i <= 0;
-            dp_state <= MULTIPLY_ELEMENT;
+            state <= MULTIPLY_ELEMENT;
             out_v <= 0;
         end else
-            case(dp_state)
+            case(state)
                 MULTIPLY_ELEMENT: begin
                     acc0 <= acc0 + product0;
                     product0 <= a[i] * b_values[i];
                     i <= i + 1;
-                    dp_state <= (i == D-1) ? FINAL_ADD : MULTIPLY_ELEMENT;
+                    state <= (i == D-1) ? FINAL_ADD : MULTIPLY_ELEMENT;
                 end
                 FINAL_ADD: begin
                     acc0 <= acc0 + product0;
-                    dp_state <= DONE;
+                    state <= DONE;
                 end
                 DONE: begin
                     out <= acc0;

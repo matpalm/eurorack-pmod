@@ -1,6 +1,6 @@
 module network #(
-    parameter W = 16,  // width for each element
-    parameter D = 16   // size of packed port arrays
+    parameter W = 16,         // width for each element
+    parameter FILTER_D = 16   // size of packed port arrays
 )(
     input rst,
     input clk,
@@ -15,6 +15,9 @@ module network #(
     output signed [W-1:0] sample_out3,
     input [7:0] jack
 );
+
+    // everything works now with in and out being 4D for eurorack pmod ins/out
+    localparam IN_OUT_D = 4;
 
     localparam
         CLK_LSB         = 0,
@@ -43,6 +46,7 @@ module network #(
     reg signed [W-1:0] shifted_sample_in3;
 
     // NOTE: not shifted for cocotb version, but >>>2 shifted for eurorack pmod
+    // check jack and if not plugged emit 0x8300 -32000, => -1 in embed space
     assign shifted_sample_in0 = sample_in0 >>> 2;
     assign shifted_sample_in1 = sample_in1 >>> 2;  // 8V shifts to 0x1F40
     assign shifted_sample_in2 = sample_in2 >>> 2;  // 8V shifts to 0x1F40
@@ -98,21 +102,20 @@ module network #(
     // always connected to left shift buffer for input
 
     reg c0_rst;
-    reg signed [D*W-1:0] c0a0;
-    reg signed [D*W-1:0] c0a1;
-    reg signed [D*W-1:0] c0a2;
-    reg signed [D*W-1:0] c0a3;
-    reg signed [D*W-1:0] c0_out;
+    reg signed [IN_OUT_D*W-1:0] c0a0;
+    reg signed [IN_OUT_D*W-1:0] c0a1;
+    reg signed [IN_OUT_D*W-1:0] c0a2;
+    reg signed [IN_OUT_D*W-1:0] c0a3;
+    reg signed [FILTER_D*W-1:0] c0_out;
     reg c0_out_v;
 
-    // concat W elements, and then left shift them another D-W, to make them
-    // effectively the first 4 elements in an 8D array
-    assign c0a0 = {lsb_out_in0_0, lsb_out_in1_0, lsb_out_in2_0, lsb_out_in3_0} << (D-4)*W;
-    assign c0a1 = {lsb_out_in0_1, lsb_out_in1_1, lsb_out_in2_1, lsb_out_in3_1} << (D-4)*W;
-    assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2} << (D-4)*W;
-    assign c0a3 = {lsb_out_in0_3, lsb_out_in1_3, lsb_out_in2_3, lsb_out_in3_3} << (D-4)*W;
+    // concat LSB elements into 4 packed values.
+    assign c0a0 = {lsb_out_in0_0, lsb_out_in1_0, lsb_out_in2_0, lsb_out_in3_0};
+    assign c0a1 = {lsb_out_in0_1, lsb_out_in1_1, lsb_out_in2_1, lsb_out_in3_1};
+    assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2};
+    assign c0a3 = {lsb_out_in0_3, lsb_out_in1_3, lsb_out_in2_3, lsb_out_in3_3};
 
-    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv0")) conv0 (
+    conv1d #(.W(W), .IN_D(IN_OUT_D), .OUT_D(FILTER_D), .B_VALUES("weights/qconv0")) conv0 (
         .clk(clk), .rst(c0_rst), .apply_relu(1'b1),
         .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
         .packed_out(c0_out),
@@ -122,13 +125,13 @@ module network #(
     // conv 0 activation cache
 
     reg ac_c0_clk = 0;
-    reg signed [D*W-1:0] ac_c0_out_l0;
-    reg signed [D*W-1:0] ac_c0_out_l1;
-    reg signed [D*W-1:0] ac_c0_out_l2;
-    reg signed [D*W-1:0] ac_c0_out_l3;
+    reg signed [FILTER_D*W-1:0] ac_c0_out_l0;
+    reg signed [FILTER_D*W-1:0] ac_c0_out_l1;
+    reg signed [FILTER_D*W-1:0] ac_c0_out_l2;
+    reg signed [FILTER_D*W-1:0] ac_c0_out_l3;
     localparam C0_DILATION = 4;
 
-    activation_cache #(.W(W), .D(D), .DILATION(C0_DILATION)) activation_cache_c0 (
+    activation_cache #(.W(W), .D(FILTER_D), .DILATION(C0_DILATION)) activation_cache_c0 (
         .clk(ac_c0_clk), .rst(rst), .inp(c0_out),
         .out_l0(ac_c0_out_l0),
         .out_l1(ac_c0_out_l1),
@@ -140,10 +143,10 @@ module network #(
     // conv 1 block
 
     reg c1_rst = 0;
-    reg signed [D*W-1:0] c1_out;
+    reg signed [FILTER_D*W-1:0] c1_out;
     reg c1_out_v;
 
-    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv1")) conv1 (
+    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(FILTER_D), .B_VALUES("weights/qconv1")) conv1 (
         .clk(clk), .rst(c1_rst), .apply_relu(1'b1),
         .packed_a0(ac_c0_out_l0), .packed_a1(ac_c0_out_l1),
         .packed_a2(ac_c0_out_l2), .packed_a3(ac_c0_out_l3),
@@ -154,13 +157,13 @@ module network #(
     // conv 1 activation cache
 
     reg ac_c1_clk = 0;
-    reg signed [D*W-1:0] ac_c1_out_l0;
-    reg signed [D*W-1:0] ac_c1_out_l1;
-    reg signed [D*W-1:0] ac_c1_out_l2;
-    reg signed [D*W-1:0] ac_c1_out_l3;
+    reg signed [FILTER_D*W-1:0] ac_c1_out_l0;
+    reg signed [FILTER_D*W-1:0] ac_c1_out_l1;
+    reg signed [FILTER_D*W-1:0] ac_c1_out_l2;
+    reg signed [FILTER_D*W-1:0] ac_c1_out_l3;
     localparam C1_DILATION = 4*4;
 
-    activation_cache #(.W(W), .D(D), .DILATION(C1_DILATION)) activation_cache_c1 (
+    activation_cache #(.W(W), .D(FILTER_D), .DILATION(C1_DILATION)) activation_cache_c1 (
         .clk(ac_c1_clk), .rst(rst), .inp(c1_out),
         .out_l0(ac_c1_out_l0),
         .out_l1(ac_c1_out_l1),
@@ -172,10 +175,10 @@ module network #(
     // conv 2 block
 
     reg c2_rst = 0;
-    reg signed [D*W-1:0] c2_out;
+    reg signed [IN_OUT_D*W-1:0] c2_out;
     reg c2_out_v;
 
-    conv1d #(.W(W), .D(D), .B_VALUES("weights/qconv2")) conv2 (
+    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(IN_OUT_D), .B_VALUES("weights/qconv2")) conv2 (
         .clk(clk), .rst(c2_rst), .apply_relu(1'b0),
         .packed_a0(ac_c1_out_l0), .packed_a1(ac_c1_out_l1),
         .packed_a2(ac_c1_out_l2), .packed_a3(ac_c1_out_l3),
@@ -204,7 +207,7 @@ module network #(
             prev_sample_clk <= 0;
             n_clk_ticks <= 0;
             n_output_ticks <= 0;
-            state <= WAITING;
+            state <= OUTPUT;
         end else begin
             if (sample_clk == 1 && sample_clk != prev_sample_clk) begin
                 state <= CLK_LSB;
@@ -272,7 +275,7 @@ module network #(
                     OUTPUT: begin
                         // NOTE: not shifted for cocotb version, but <<2 shifted for eurorack pmod
                         // final net output is last conv output
-                        out0 <= c2_out[D*W-1:(D-1)*W] << 2;
+                        out0 <= c2_out[IN_OUT_D*W-1:(IN_OUT_D-1)*W] << 2;
                         out1 <= n_clk_ticks >> W;
                         out2 <= n_output_ticks >> W;
                         out3 <= 0;
