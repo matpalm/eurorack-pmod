@@ -1,6 +1,8 @@
+`default_nettype none
+
 module network #(
     parameter W = 16,         // width for each element
-    parameter FILTER_D = 16   // size of packed port arrays
+    parameter FILTER_D=4,     // size of packed conv0 and conv2 filters
 )(
     input rst,
     input clk,
@@ -115,7 +117,7 @@ module network #(
     assign c0a2 = {lsb_out_in0_2, lsb_out_in1_2, lsb_out_in2_2, lsb_out_in3_2};
     assign c0a3 = {lsb_out_in0_3, lsb_out_in1_3, lsb_out_in2_3, lsb_out_in3_3};
 
-    conv1d #(.W(W), .IN_D(IN_OUT_D), .OUT_D(FILTER_D), .B_VALUES("weights/qconv0")) conv0 (
+    conv1d #(.W(W), .IN_D(IN_OUT_D), .OUT_D(FILTER_D), .WEIGHTS("weights/qconv_0_qb")) conv0 (
         .clk(clk), .rst(c0_rst), .apply_relu(1'b1),
         .packed_a0(c0a0), .packed_a1(c0a1), .packed_a2(c0a2), .packed_a3(c0a3),
         .packed_out(c0_out),
@@ -146,7 +148,7 @@ module network #(
     reg signed [FILTER_D*W-1:0] c1_out;
     reg c1_out_v;
 
-    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(FILTER_D), .B_VALUES("weights/qconv1")) conv1 (
+    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(FILTER_D), .WEIGHTS("weights/qconv_1_qb")) conv1 (
         .clk(clk), .rst(c1_rst), .apply_relu(1'b1),
         .packed_a0(ac_c0_out_l0), .packed_a1(ac_c0_out_l1),
         .packed_a2(ac_c0_out_l2), .packed_a3(ac_c0_out_l3),
@@ -178,7 +180,7 @@ module network #(
     reg signed [IN_OUT_D*W-1:0] c2_out;
     reg c2_out_v;
 
-    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(IN_OUT_D), .B_VALUES("weights/qconv2")) conv2 (
+    conv1d #(.W(W), .IN_D(FILTER_D), .OUT_D(IN_OUT_D), .WEIGHTS("weights/qconv_2_qb")) conv2 (
         .clk(clk), .rst(c2_rst), .apply_relu(1'b0),
         .packed_a0(ac_c1_out_l0), .packed_a1(ac_c1_out_l1),
         .packed_a2(ac_c1_out_l2), .packed_a3(ac_c1_out_l3),
@@ -200,20 +202,19 @@ module network #(
 
     logic prev_sample_clk;
 
+    always @(posedge sample_clk) begin
+        // start forward pass of network
+        state <= CLK_LSB;
+    end
 
-    always_ff @(posedge clk) begin
-        prev_sample_clk <= sample_clk;
+    always @(posedge clk or posedge rst) begin
         if (rst) begin
             prev_sample_clk <= 0;
             n_clk_ticks <= 0;
             n_output_ticks <= 0;
-            state <= OUTPUT;
+            state <= CLK_LSB;
         end else begin
-            if (sample_clk == 1 && sample_clk != prev_sample_clk) begin
-                state <= CLK_LSB;
-                //n_sample_clk_ticks <= n_sample_clk_ticks + 1;
-            end else begin
-                case (state)
+                case(state)
 
                     CLK_LSB: begin
                         // signal left shift buffer to run once
@@ -231,7 +232,7 @@ module network #(
                     CONV_0_RUNNING: begin
                         // wait until conv0 has run
                         c0_rst <= 0;
-                        state <= c0_out_v ? CLK_ACT_CACHE_0 : CONV_0_RUNNING;
+                        if (c0_out_v) state <= CLK_ACT_CACHE_0;
                     end
 
                     CLK_ACT_CACHE_0: begin
@@ -250,7 +251,7 @@ module network #(
                     CONV_1_RUNNING: begin
                         // wait until conv1 has run
                         c1_rst <= 0;
-                        state <= c1_out_v ? CLK_ACT_CACHE_1 : CONV_1_RUNNING;
+                        if (c1_out_v) state <= CLK_ACT_CACHE_1;
                     end
 
                     CLK_ACT_CACHE_1: begin
@@ -269,7 +270,7 @@ module network #(
                     CONV_2_RUNNING: begin
                         // wait until conv2 has run
                         c2_rst <= 0;
-                        state <= c2_out_v ? OUTPUT : CONV_2_RUNNING;
+                        if (c2_out_v) state <= OUTPUT;
                     end
 
                     OUTPUT: begin
@@ -285,8 +286,6 @@ module network #(
                 endcase
                 n_clk_ticks <= n_clk_ticks + 1;
             end
-
-        end
     end
 
     assign sample_out0 = out0;
