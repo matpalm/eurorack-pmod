@@ -1,6 +1,6 @@
 `default_nettype none
 
-module row_by_matrix_multiply #(
+module po2_row_by_matrix_multiply #(
     parameter W=16,       // width for each element
     parameter IN_D,       // size of packed port arrays for a input
     parameter OUT_D,      // size of packed port arrays for output
@@ -27,36 +27,33 @@ module row_by_matrix_multiply #(
         end
     endgenerate
 
-    // TODO: how to do create these dynamically in a generate block?
-    //       can't use arrays of instances ( because of WEIGHTS )
+    // auto generated! see sverilog_version/generate.py
 
-    // as is we now have a clumsy example where we support either 4, 8 or 16 :/
-
-    dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c00.hex"})) col0 (
+    po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c00"})) col0 (
         .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[0]), .out_v(col_v[0])
     );
-    dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c01.hex"})) col1 (
+    po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c01"})) col1 (
         .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[1]), .out_v(col_v[1])
     );
-    dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c02.hex"})) col2 (
+    po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c02"})) col2 (
         .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[2]), .out_v(col_v[2])
     );
-    dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c03.hex"})) col3 (
+    po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c03"})) col3 (
         .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[3]), .out_v(col_v[3])
     );
 
     generate
-        if (OUT_D > 4 ) begin
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c04.hex"})) col4 (
+        if (OUT_D > 4) begin
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c04"})) col4 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[4]), .out_v(col_v[4])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c05.hex"})) col5 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c05"})) col5 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[5]), .out_v(col_v[5])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c06.hex"})) col6 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c06"})) col6 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[6]), .out_v(col_v[6])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c07.hex"})) col7 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c07"})) col7 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[7]), .out_v(col_v[7])
             );
         end
@@ -64,28 +61,28 @@ module row_by_matrix_multiply #(
 
     generate
         if (OUT_D > 8) begin
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c08.hex"})) col8 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c08"})) col8 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[8]), .out_v(col_v[8])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c09.hex"})) col9 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c09"})) col9 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[9]), .out_v(col_v[9])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c10.hex"})) col10 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c10"})) col10 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[10]), .out_v(col_v[10])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c11.hex"})) col11 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c11"})) col11 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[11]), .out_v(col_v[11])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c12.hex"})) col12 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c12"})) col12 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[12]), .out_v(col_v[12])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c13.hex"})) col13 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c13"})) col13 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[13]), .out_v(col_v[13])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c14.hex"})) col14 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c14"})) col14 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[14]), .out_v(col_v[14])
             );
-            dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS,"/c15.hex"})) col15 (
+            po2_dot_product #(.W(W), .D(IN_D), .WEIGHTS({WEIGHTS, "/c15"})) col15 (
                 .clk(clk), .rst(rst), .packed_a(packed_a), .out(dp_N_out[15]), .out_v(col_v[15])
             );
         end

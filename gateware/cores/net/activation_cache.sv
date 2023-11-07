@@ -2,7 +2,7 @@
 
 module activation_cache #(
     parameter W = 16,        // width for each element
-    parameter D = 2,         // size of packed port arrays
+    parameter D,             // size of packed port arrays
     parameter DILATION = 4   // dilation
     // assume kernel size = 4
 )(
