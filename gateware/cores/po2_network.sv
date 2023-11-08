@@ -2,8 +2,8 @@
 
 module network #(
     parameter W = 16,         // width for each element
-    parameter FILTER_D=8,     // size of packed conv0 and conv2 filters
-    parameter FILTER_PO2_D=16 // size of packed conv1 po2 filters
+    parameter FILTER_D=4,     // size of packed conv0 and conv2 filters
+    parameter FILTER_PO2_D=8  // size of packed conv1 po2 filters
 )(
     input rst,
     input clk,
@@ -254,19 +254,20 @@ module network #(
 
     logic prev_sample_clk;
 
-    always @(posedge sample_clk) begin
-        // start forward pass of network
-        state <= CLK_LSB;
-    end
-
-    always @(posedge clk or posedge rst) begin
+    always_ff @(posedge clk) begin
+        prev_sample_clk <= sample_clk;
         if (rst) begin
             prev_sample_clk <= 0;
-            n_clk_ticks <= 0;
-            n_output_ticks <= 0;
+            //n_sample_clk_ticks <= 0;
+            //n_clk_ticks <= 0;
+            //n_dps <= 0;
             state <= CLK_LSB;
         end else begin
-                case(state)
+            if (sample_clk == 1 && sample_clk != prev_sample_clk) begin
+                state <= CLK_LSB;
+                //n_sample_clk_ticks <= n_sample_clk_ticks + 1;
+            end else begin
+                case (state)
 
                     CLK_LSB: begin
                         // signal left shift buffer to run once
@@ -386,6 +387,7 @@ module network #(
                 endcase
                 n_clk_ticks <= n_clk_ticks + 1;
             end
+        end
     end
 
     assign sample_out0 = out0;
