@@ -1,9 +1,9 @@
 `default_nettype none
 
 module network #(
-    parameter W = 16,         // width for each element
-    parameter FILTER_D=4,     // size of packed conv0 and conv2 filters
-    parameter FILTER_PO2_D=8  // size of packed conv1 po2 filters
+    parameter W=16,            // width for each element
+    parameter FILTER_D=8,      // size of packed conv0 and conv2 filters
+    parameter FILTER_PO2_D=16  // size of packed conv1 po2 filters
 )(
     input rst,
     input clk,
